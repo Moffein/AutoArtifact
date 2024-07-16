@@ -18,7 +18,7 @@ namespace R2API.Utils
 
 namespace AutoArtifact
 {
-    [BepInPlugin("com.Moffein.AutoArtifact", "AutoArtifact", "1.1.0")]
+    [BepInPlugin("com.Moffein.AutoArtifact", "AutoArtifact", "1.1.1")]
     public class AutoArtifactPlugin : BaseUnityPlugin
     {
         private static ConfigEntry<string> artifactListString;
@@ -38,25 +38,21 @@ namespace AutoArtifact
             {
                 foreach (ArtifactInfo info in artifactInfoList)
                 {
-                    bool alreadyEnabled = RunArtifactManager.instance.IsArtifactEnabled(info.artifactDef);
-                    bool meetsStages = info.stageClearCount >= 0 && Run.instance.stageClearCount >= info.stageClearCount;
+                    bool useStageCheck = info.stageClearCount >= 0;
+                    bool meetsStages = !useStageCheck || Run.instance.stageClearCount >= info.stageClearCount;
 
                     bool usePlayerCheck = info.playerCount >= 0;
                     int playerDiff = Run.instance.participatingPlayerCount - info.playerCount;
+                    bool meetsPlayers = !usePlayerCheck || playerDiff >= 0;
 
-                    bool meetsPlayers = usePlayerCheck && playerDiff >= 0;
-                    if (meetsStages || meetsPlayers)
+                    bool shouldEnable = meetsPlayers && meetsStages;
+                    bool artifactEnabled = RunArtifactManager.instance.IsArtifactEnabled(info.artifactDef);
+
+                    if (artifactEnabled != shouldEnable)
                     {
-                        if (!alreadyEnabled)
-                        {
-                            Debug.Log("AutoArtifact: Enabled " + info.artifactDef.cachedName + ", Meets StageClearCount Requirement: " + meetsStages + ", Meets PlayerCount Requirement: " + meetsPlayers);
-                            RunArtifactManager.instance.SetArtifactEnabledServer(info.artifactDef, true);
-                        }
-                    }
-                    else if (usePlayerCheck && playerDiff < 0 && alreadyEnabled)
-                    {
-                        Debug.Log("AutoArtifact: Disabled " + info.artifactDef.cachedName + " due to PlayerCount.");
-                        RunArtifactManager.instance.SetArtifactEnabledServer(info.artifactDef, false);
+                        string actionString = shouldEnable ? "Enabled" : "Disabled";
+                        Debug.Log("AutoArtifact: " + actionString + " " + info.artifactDef.cachedName + ", Meets StageClearCount Requirement: " + meetsStages + ", Meets PlayerCount Requirement: " + meetsPlayers);
+                        RunArtifactManager.instance.SetArtifactEnabledServer(info.artifactDef, shouldEnable);
                     }
                 }
             }
@@ -65,7 +61,7 @@ namespace AutoArtifact
 
         private void ReadConfig()
         {
-            artifactListString = base.Config.Bind<string>(new ConfigDefinition("Settings", "Artifact List"), "", new ConfigDescription("List of artifacts separated by commas. Format is ArtifactName:StageClearCount:PlayerCount (ex. Command, Honor:10, Sacrifice:-1:5). Use negative numbers to skip a check (ex. Sacrifice:-1:5 means that StageCount requirement will always be treated as False, meaning only PlayerCount will determine whether the artifact should be activated)."));
+            artifactListString = base.Config.Bind<string>(new ConfigDefinition("Settings", "Artifact List"), "", new ConfigDescription("List of artifacts separated by commas. Format is ArtifactName:StageClearCount:PlayerCount (ex. Command, Honor:10, Sacrifice:-1:5). Use negative numbers to skip a check (ex. Sacrifice:-1:5 means that StageCount requirement will be ignored, meaning only PlayerCount will determine whether the artifact should be activated)."));
             artifactListString.SettingChanged += ArtifactListString_SettingChanged;
         }
 
